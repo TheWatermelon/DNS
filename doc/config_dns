@@ -1,0 +1,21 @@
+$TTL	86400 
+tp_se.info.unicaen.fr. IN  SOA ns1.tp_se.info.unicaen. hostmaster.tp_se.info.unicaen.fr. (
+			      1002003004 ; serial
+			      3H ; refresh
+			      15 ; retry
+			      1w ; expire
+			      3h ; nxdomain ttl
+			     )
+
+tp_se.info.unicaen.fr. IN  NS     ns1.tp_se.info.unicaen.fr.
+tp_se.info.unicaen.fr. IN  MX  10 mail.tp_se.info.unicaen.fr.
+ns1.tp_se.info.unicaen.fr.    IN  A      192.168.0.1     
+www.tp_se.info.unicaen.fr.    IN  A      192.168.0.2
+ftp.tp_se.info.unicaen.fr.    IN  CNAME  www.tp_se.info.unicaen.fr.
+
+machineA.tp_se.info.unicaen.fr.   IN  A      192.168.0.3
+machineB.tp_se.info.unicaen.fr.   IN  A      192.168.0.4 
+
+
+3.0.168.192.in-addr.arpa.   IN  PTR      machineA.tp_se.info.unicaen.fr.
+4.0.168.192.in-addr.arpa.   IN  PTR      machineB.tp_se.info.unicaen.fr.
