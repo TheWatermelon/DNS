@@ -28,8 +28,6 @@ void clear_string(char* src) {
 }
 
 int16_t str_to_label(char* src, char* dest) {
-	// Taille de la sous-chaine
-	char length;
 	// Pointeur sur la prochaine sous-chaine
 	char* ptr;
 	// Sous-chaine
@@ -41,9 +39,9 @@ int16_t str_to_label(char* src, char* dest) {
 	while((ptr=strchr(substring, '.'))!=NULL) {
 		// Position et taille de la sous-chaine
 		offset = ptr-substring;
-		length = offset & 11111111;
+		ptr = &offset+3;
 		// Copie de la sous-chaine dans la chaine de destination
-		strncat(dest, &length, 1);
+		strncat(dest, ptr, 1);
 		strncat(dest, substring, offset);
 		// Decalage du pointeur -> nouvelle sous-chaine
 		substring = substring+offset+1;
@@ -60,18 +58,66 @@ int16_t label_to_str(char* src, char* dest) {
 	char length, point='.';
 	char* substring = src;
 	int offset;
-
+	// Tant qu'on n'a pas atteint la fin de la chaine
 	while(*substring!=0) {
+		// On recupere le nombre de caracteres de la sous chaine
 		length = *substring;
+		// On avance jusqu'a la sous-chaine
 		substring = substring+1;
+		// On recupere la sous-chaine
 		for(int i=0; i<(int)length; i++) {
 			strncat(dest, substring, 1);
 			substring = substring+1;
 		}
+		// On ajoute un point entre chaque sous-chaine
 		if(*substring!=0) {
 			strncat(dest, &point, 1);
 		}
 	}
 	
 	return strlen(src)-1;
+}
+
+void generate_dns_header(char* dest, int16_t id, char opcode, char authority_answer, char truncated, char recursive_question, char recursive_answer, char rcode, int16_t questions, int16_t answers, int16_t name_servers, int16_t additionals) {
+	char* ptr;
+	int16_t info=0;
+	// ID
+	ptr = &id;
+	strncat(dest, ptr, 2);
+	// QR, OPCODE, AA, TC, RD, RA, (Z), RCODE
+	info = info | ((answers>0)<<15);
+	info = info | (opcode<<11);
+	info = info | (authority_answer<<10);
+	info = info | (truncated<<9);
+	info = info | (recursive_question<<8);
+	info = info | (recursive_answer<<7);
+	info = info | rcode;
+	ptr = &info;
+	strncat(dest, ptr, 2);
+	// QDCOUNT
+	ptr = &questions;
+	strncat(dest, ptr, 2);
+	// ANCOUNT
+	ptr = &answers;
+	strncat(dest, ptr, 2);
+	// NSCOUNT
+	ptr = &name_servers;
+	strncat(dest, ptr, 2);
+	// ARCOUNT
+	ptr = &additionals;
+	strncat(dest, ptr, 2);
+}
+
+void generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass) {
+	char* ptr;
+	// QNAME
+	strcat(dest, qname);
+	*ptr=0;
+	strncat(dest, ptr, 1);
+	// QTYPE
+	ptr = &qtype;
+	strncat(dest, ptr, 2);
+	// QCLASS
+	ptr = &qclass;
+	strncat(dest, ptr, 2);
 }
