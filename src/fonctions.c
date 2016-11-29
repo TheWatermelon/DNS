@@ -15,11 +15,40 @@ int16_t convert_2int8_to_int16(int8_t* in) {
 	return *(int16_t*)in;
 }
 
-int16_t strToLabel(char* src, char* dest) {
-	int16_t labelLength=0;
+void print_string_in_bytes(char* src) {
+	int i;
+	for(i=0; i<strlen(src); i++) {
+		printf("%x ", src[i]);
+	}
+	printf("\n");
+}
 
-	// Deux approches : compter le nombre de sous-mot + la taille de chaque sous-mot
-	// OU : compter la chaine totale + 1
+void clear_string(char* src) {
+	for(int i=0; i<strlen(src); src[i]=0, i++);
+}
 
-	return labelLength;
+int16_t str_to_label(char* src, char* dest) {
+	int16_t label_length=strlen(src)+1;
+	char length;
+	char* ptr;
+	char* substring=src;
+	int offset;
+
+	// Decoupe de copy en points
+	while((ptr=strchr(substring, '.'))!=NULL) {
+		// Position et taille de la sous-chaine
+		offset = ptr-substring;
+		length = offset & 11111111;
+		// Copie de la sous-chaine dans la chaine de destination
+		strncat(dest, &length, 1);
+		strncat(dest, substring, offset);
+		// Decalage du pointeur -> nouvelle sous-chaine
+		substring = substring+offset+1;
+	}
+	// Derniere partie
+	length = strlen(substring);
+	strncat(dest, &length, 1);
+	strncat(dest, substring, strlen(substring));
+
+	return label_length;
 }
