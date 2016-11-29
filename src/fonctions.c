@@ -28,10 +28,13 @@ void clear_string(char* src) {
 }
 
 int16_t str_to_label(char* src, char* dest) {
-	int16_t label_length=strlen(src)+1;
+	// Taille de la sous-chaine
 	char length;
+	// Pointeur sur la prochaine sous-chaine
 	char* ptr;
+	// Sous-chaine
 	char* substring=src;
+	// Taille de la sous-chaine
 	int offset;
 
 	// Decoupe de copy en points
@@ -50,5 +53,25 @@ int16_t str_to_label(char* src, char* dest) {
 	strncat(dest, &length, 1);
 	strncat(dest, substring, strlen(substring));
 
-	return label_length;
+	return strlen(src)+1;
+}
+
+int16_t label_to_str(char* src, char* dest) {
+	char length, point='.';
+	char* substring = src;
+	int offset;
+
+	while(*substring!=0) {
+		length = *substring;
+		substring = substring+1;
+		for(int i=0; i<(int)length; i++) {
+			strncat(dest, substring, 1);
+			substring = substring+1;
+		}
+		if(*substring!=0) {
+			strncat(dest, &point, 1);
+		}
+	}
+	
+	return strlen(src)-1;
 }

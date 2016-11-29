@@ -13,4 +13,6 @@ void clear_string(char* src);
 
 int16_t str_to_label(char* src, char* dest);
 
+int16_t label_to_str(char* src, char* dest);
+
 #endif /* FONCTIONS_H */
