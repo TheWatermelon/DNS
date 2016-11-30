@@ -4,6 +4,10 @@
 #include <unistd.h>
 #include <string.h>
 
+int test_little_endian() {
+	int test=0x1;
+	return *((char*)&test)==1;
+}
 
 void convert_int16_to_2int8(int16_t in, int8_t* res) {
 	int8_t* c=(int8_t*)&in;
@@ -23,8 +27,39 @@ void print_string_in_bytes(char* src) {
 	printf("\n");
 }
 
+void print_n_bytes(char* src, int n) {
+	int i;
+	for(i=0; i<n; i++) {
+		printf("0x%x ", src[i]);
+	}
+	printf("\n");
+}
+
+char* reverse_str(char* src) {
+	char* reverse = malloc(strlen(src)*sizeof(char));
+	int offset=strlen(src)-1;
+	for(int i=0; i<strlen(src); i++) {
+		reverse[i]=src[offset--];
+	}
+	return reverse;
+}
+
 void clear_string(char* src) {
 	for(int i=0; i<strlen(src); src[i]=0, i++);
+}
+
+void write_in_str(char* dest, int* offset, char* src, int n) {
+	if(test_little_endian()) {	// Little endian
+		int little_offset=0;
+		for(int i=n-1; i>=0; i--) {
+			dest[*offset+(little_offset++)]=src[i];
+		}
+	} else {										// Big endian
+		for(int i=0; i<n; i++) {
+			dest[*offset+i] = src[i];
+		}
+	}
+	*offset+=n;
 }
 
 int16_t str_to_label(char* src, char* dest) {
@@ -39,7 +74,7 @@ int16_t str_to_label(char* src, char* dest) {
 	while((ptr=strchr(substring, '.'))!=NULL) {
 		// Position et taille de la sous-chaine
 		offset = ptr-substring;
-		ptr = &offset+3;
+		ptr = (char*)&offset;
 		// Copie de la sous-chaine dans la chaine de destination
 		strncat(dest, ptr, 1);
 		strncat(dest, substring, offset);
@@ -47,8 +82,9 @@ int16_t str_to_label(char* src, char* dest) {
 		substring = substring+offset+1;
 	}
 	// Derniere partie
-	length = strlen(substring);
-	strncat(dest, &length, 1);
+	offset = strlen(substring);
+	ptr = (char*)&offset;
+	strncat(dest, ptr, 1);
 	strncat(dest, substring, strlen(substring));
 
 	return strlen(src)+1;
@@ -81,9 +117,10 @@ int16_t label_to_str(char* src, char* dest) {
 void generate_dns_header(char* dest, int16_t id, char opcode, char authority_answer, char truncated, char recursive_question, char recursive_answer, char rcode, int16_t questions, int16_t answers, int16_t name_servers, int16_t additionals) {
 	char* ptr;
 	int16_t info=0;
+	int offset=0;
 	// ID
-	ptr = &id;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&id;
+	write_in_str(dest, &offset, ptr, 2);
 	// QR, OPCODE, AA, TC, RD, RA, (Z), RCODE
 	info = info | ((answers>0)<<15);
 	info = info | (opcode<<11);
@@ -92,32 +129,43 @@ void generate_dns_header(char* dest, int16_t id, char opcode, char authority_ans
 	info = info | (recursive_question<<8);
 	info = info | (recursive_answer<<7);
 	info = info | rcode;
-	ptr = &info;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&info;
+	write_in_str(dest, &offset, ptr, 2);
 	// QDCOUNT
-	ptr = &questions;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&questions;
+	write_in_str(dest, &offset, ptr, 2);
 	// ANCOUNT
-	ptr = &answers;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&answers;
+	write_in_str(dest, &offset, ptr, 2);
 	// NSCOUNT
-	ptr = &name_servers;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&name_servers;
+	write_in_str(dest, &offset, ptr, 2);
 	// ARCOUNT
-	ptr = &additionals;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&additionals;
+	write_in_str(dest, &offset, ptr, 2);
 }
 
 void generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass) {
+	int offset=0;
 	char* ptr;
 	// QNAME
-	strcat(dest, qname);
-	*ptr=0;
-	strncat(dest, ptr, 1);
+	// Le label recu en parametre est au format Big Endian
+	if(test_little_endian()) { 
+		char* reverse_qname = reverse_str(qname);
+		write_in_str(dest, &offset, reverse_qname, strlen(qname));
+		free(reverse_qname);
+	} else {
+		write_in_str(dest, &offset, qname, strlen(qname));
+	}
+	{	// Root name
+		char zero=0;
+		ptr = &zero;
+		write_in_str(dest, &offset, ptr, 1);
+	}
 	// QTYPE
-	ptr = &qtype;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&qtype;
+	write_in_str(dest, &offset, ptr, 2);
 	// QCLASS
-	ptr = &qclass;
-	strncat(dest, ptr, 2);
+	ptr = (char*)&qclass;
+	write_in_str(dest, &offset, ptr, 2);
 }
