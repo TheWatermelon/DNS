@@ -36,6 +36,7 @@ void print_n_bytes(char* src, int n) {
 }
 
 char* reverse_str(char* src) {
+	// Dynamic allocation
 	char* reverse = malloc(strlen(src)*sizeof(char));
 	int offset=strlen(src)-1;
 	for(int i=0; i<strlen(src); i++) {
@@ -44,17 +45,13 @@ char* reverse_str(char* src) {
 	return reverse;
 }
 
-void clear_string(char* src) {
-	for(int i=0; i<strlen(src); src[i]=0, i++);
-}
-
 void write_in_str(char* dest, int* offset, char* src, int n) {
-	if(test_little_endian()) {	// Little endian
+	if(test_little_endian()) { // Little endian
 		int little_offset=0;
 		for(int i=n-1; i>=0; i--) {
 			dest[*offset+(little_offset++)]=src[i];
 		}
-	} else {										// Big endian
+	} else { // Big endian
 		for(int i=0; i<n; i++) {
 			dest[*offset+i] = src[i];
 		}
@@ -168,4 +165,33 @@ void generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclas
 	// QCLASS
 	ptr = (char*)&qclass;
 	write_in_str(dest, &offset, ptr, 2);
+}
+
+void generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int16_t rclass, int32_t ttl, int16_t rdlength, char* rdata) {
+	int offset=0;
+	char* ptr;
+	// RNAME
+	ptr = (char*)&rname;
+	write_in_str(dest, &offset, ptr, 2);
+	// RTYPE
+	ptr = (char*)&rtype;
+	write_in_str(dest, &offset, ptr, 2);
+	// RCLASS
+	ptr = (char*)&rclass;
+	write_in_str(dest, &offset, ptr, 2);
+	// TTL
+	ptr = (char*)&ttl;
+	write_in_str(dest, &offset, ptr, 4);
+	// RDLENGTH
+	ptr = (char*)&rdlength;
+	write_in_str(dest, &offset, ptr, 2);
+	// RDATA
+	// Les donnees recues en parametre sont au format Big Endian
+	if(test_little_endian()) { 
+		char* reverse_rdata = reverse_str(rdata);
+		write_in_str(dest, &offset, reverse_rdata, rdlength);
+		free(reverse_rdata);
+	} else {
+		write_in_str(dest, &offset, rdata, strlen(rdata));
+	}
 }
