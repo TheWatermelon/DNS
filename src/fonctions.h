@@ -3,6 +3,9 @@
 
 #include <stdlib.h>
 
+#define TRUE 1
+#define FALSE 0
+
 /***********************************
  *
  * NAME : dns_table_entry : DNS configuration table entry
@@ -92,6 +95,15 @@ void print_string_in_bytes(char* src);
  *
  ***********************************/
 void print_n_bytes(char* src, int n);
+
+/***********************************
+ *
+ * NAME : is_empty_line : check if the string
+ * is only composed of white spaces (tab, space, CR)
+ * PARAM : str : the string to check
+ * RETURN : true if the line is empty, false otherwise
+ ***********************************/
+int is_empty_line(char* str);
 
 /***********************************
  *

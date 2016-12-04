@@ -84,6 +84,15 @@ void print_n_bytes(char* src, int n) {
 	printf("\n");
 }
 
+int is_empty_line(char* str) {
+	for(int i=0; i<strlen(str); i++) {
+		if(str[i]>32) {
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
 char* reverse_str(char* src) {
 	// Dynamic allocation
 	char* reverse = malloc(strlen(src)*sizeof(char));
@@ -188,16 +197,20 @@ dns_table init_table(char* filename) {
 	printf("TTL : %d\n", table.ttl);
 
 	// Count the number of entries
-	int lines;
-	for(lines=0; (getline(&buffer, &n, fp))!=-1; lines++);
-	// Allocation the corresponding table entries
-	table.entries = malloc(lines*sizeof(dns_table_entry));
+	int lines_count=0;
+	while((getline(&buffer, &n, fp))!=-1) {
+		{ lines_count++; }
+	}
+	// Allocation of the corresponding table entries
+	table.entries = malloc(lines_count*sizeof(dns_table_entry));
 	// Seek the beginning of the file
 	fseek(fp, SEEK_SET, 0);
 	// Skip the ttl line
 	getline(&buffer, &n, fp);
 	// Remplissage du contenu
-	for(lines=0; (getline(&buffer, &n, fp))!=-1; lines++) {
+	for(int lines=0; lines<lines_count; lines++) {
+		getline(&buffer, &n, fp);
+		if(is_empty_line(buffer)) { continue; }
 		int i;
 								printf(" [LINE : %d]\n", lines);
 		// Name
@@ -246,23 +259,47 @@ dns_table init_table(char* filename) {
 		}
 									printf("TYPE : %d\n", table.entries[lines].type);
 		// Shift until the next data
-		while(buffer[i++]==32);
-		i--;
+		while(buffer[++i]==32);
 		// Switch case for the data
 		if(table.entries[lines].type==1) {	// A
 			char ip[16]={0};
 			int ip_offset=0;
 			table.entries[lines].data = malloc(4*sizeof(char));
-			while(i<strlen(buffer)) {
+			while(i<strlen(buffer)-1) {
 				ip[ip_offset++]=buffer[i++];
 			}
 			convert_ip_to_bytes(ip, table.entries[lines].data);
+			printf("DATA : ");
+			print_n_bytes(table.entries[lines].data, 4);
+		} else if(table.entries[lines].type==5 ||	/* CNAME */
+				table.entries[lines].type==2 ||	/* NS */
+				table.entries[lines].type==12) {	/* PTR */
+			table.entries[lines].data = malloc((strlen(buffer)-i)*sizeof(char));
+			int address_offset=0;
+			while(i<strlen(buffer)-1) {
+				table.entries[lines].data[address_offset++]=buffer[i++];
+			}
+			printf("DATA : %s\n", table.entries[lines].data);
+		} else if(table.entries[lines].type==15) {	/* MX */
+			table.entries[lines].data = malloc((strlen(buffer)-i)*sizeof(char));
+			char buff[3];
+			char* ptr;
+			for(int j=0; j<3; j++) { buff[j]=buffer[i++]; }
+			i--;
+			int preference = atoi(buff);
+			// Shift to the end
+			while(buffer[++i]==32);
+			ptr=(char*)&preference;
+			int address_offset=0;
+			write_in_str(table.entries[lines].data, &offset, ptr, 1);
+			while(i<strlen(buffer)-1) {
+				table.entries[lines].data[address_offset++]=buffer[i++];
+			}
+			printf("DATA :%d %s\n", preference, table.entries[lines].data);
 		} else {
 			table.entries[lines].data = malloc(4*sizeof(char));
 			table.entries[lines].data[0]=0;
 		}
-		printf("DATA : ");
-		print_n_bytes(table.entries[lines].data, 4);
 	}
 
 
