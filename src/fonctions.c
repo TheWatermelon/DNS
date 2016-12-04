@@ -19,10 +19,59 @@ int16_t convert_2int8_to_int16(int8_t* in) {
 	return *(int16_t*)in;
 }
 
+void convert_ip_to_bytes(char* ip, char* bytes) {
+	char buffer[3]={0};
+	char* ptr;
+	int byte;
+	int buffer_offset=0;
+	int bytes_offset=0;
+
+	for(int i=0; i<strlen(ip); i++) {
+		if(ip[i]!=46) {
+			buffer[buffer_offset++]=ip[i];
+		} else {
+			byte = atoi(buffer);
+			ptr = (char*)&byte;
+			bytes[bytes_offset++] = *ptr;
+			buffer[0]=0;
+			buffer[1]=0;
+			buffer[2]=0;
+			buffer_offset=0;
+		}
+	}
+	byte = atoi(buffer);
+	bytes[bytes_offset++] = (char) byte;
+}
+
+void convert_bytes_to_ip(char* bytes, char* ip) {
+	int byte, tmp;
+	char* ptr;
+	int offset=0;
+
+	for(int i=0; i<4; i++) {
+		byte=bytes[i]&0xFF;
+
+		if((tmp=byte/100)!=0) {
+			ptr = (char*) &tmp;
+			ip[offset++]=*ptr+'0';
+			byte-=tmp*100;
+		}
+		if((tmp=byte/10)!=0) {
+			ptr = (char*) &tmp;
+			ip[offset++]=*ptr+'0';
+			byte-=tmp*10;
+		}
+		tmp=byte%10;
+		ptr=(char*)&tmp;
+		ip[offset++]=*ptr+'0';
+		if(i!=3) { ip[offset++]='.'; } 
+	}
+}
+
 void print_string_in_bytes(char* src) {
 	int i;
 	for(i=0; i<strlen(src); i++) {
-		printf("%x ", src[i]);
+		printf("0x%x ", src[i]&0xFF);
 	}
 	printf("\n");
 }
@@ -30,7 +79,7 @@ void print_string_in_bytes(char* src) {
 void print_n_bytes(char* src, int n) {
 	int i;
 	for(i=0; i<n; i++) {
-		printf("0x%x ", src[i]);
+		printf("0x%x ", src[i]&0xFF);
 	}
 	printf("\n");
 }
@@ -109,6 +158,121 @@ int16_t label_to_str(char* src, char* dest) {
 	}
 	
 	return strlen(src)-1;
+}
+
+dns_table init_table(char* filename) {
+	FILE* fp;
+	char* buffer = NULL;
+	size_t n = 100;
+	dns_table table;
+	int* ttl;
+
+	// Open the file
+	fp = fopen(filename, "r");
+	if(fp == NULL) { exit(EXIT_FAILURE); }
+	
+	// 
+	// Read the file
+	//
+	// TTL
+	getline(&buffer, &n, fp);
+	char ttl_str[11]={0};
+	int offset=0;
+	for(int i=0; i<strlen(buffer); i++) { 
+		if(buffer[i]>47 && buffer[i]<58) {
+			ttl_str[offset++]=buffer[i];
+		}
+	}
+	offset=strlen(buffer);
+	table.ttl = atoi(ttl_str);
+	printf("TTL : %d\n", table.ttl);
+
+	// Count the number of entries
+	int lines;
+	for(lines=0; (getline(&buffer, &n, fp))!=-1; lines++);
+	// Allocation the corresponding table entries
+	table.entries = malloc(lines*sizeof(dns_table_entry));
+	// Seek the beginning of the file
+	fseek(fp, SEEK_SET, 0);
+	// Skip the ttl line
+	getline(&buffer, &n, fp);
+	// Remplissage du contenu
+	for(lines=0; (getline(&buffer, &n, fp))!=-1; lines++) {
+		int i;
+								printf(" [LINE : %d]\n", lines);
+		// Name
+		for(i=0; buffer[i]!=32; i++) {
+			table.entries[lines].name[i]=buffer[i];
+		}
+								printf("NAME : %s\n", table.entries[lines].name);
+		// Go to class
+		while(buffer[++i]==32);
+		// Class is always IN, so other class found will be 0
+		if(buffer[i]!=73) { table.entries[lines].class = 0; }
+		else { table.entries[lines].class = 1; }
+		i++;
+								printf("CLASS : %d\n", table.entries[lines].class);
+		// Go to type
+		while(buffer[++i]==32);
+		// Type
+		if(buffer[i]==65) {
+			// AAAA
+			if(buffer[i+1]==65) {
+				table.entries[lines].type = 28;
+				i+=4;
+			} else {	// A
+				table.entries[lines].type = 1;
+				i++;
+			}
+		} else if(buffer[i]==67) {	// CNAME
+			table.entries[lines].type = 5;
+			i+=5;
+		} else if(buffer[i]==77) {	// MX
+			table.entries[lines].type = 15;
+			i+=2;
+		} else if(buffer[i]==78) {	// NS
+			table.entries[lines].type = 2;
+			i+=2;
+		} else if(buffer[i]==80) {	// PTR
+			table.entries[lines].type = 12;
+			i+=3;
+		} else if(buffer[i]==83) {	// SOA
+			table.entries[lines].type = 6;
+			i+=3;
+		} else {	// Type unknown
+			table.entries[lines].type = 0;
+			// Shift until the next space
+			while(buffer[++i]!=32);
+		}
+									printf("TYPE : %d\n", table.entries[lines].type);
+		// Shift until the next data
+		while(buffer[i++]==32);
+		i--;
+		// Switch case for the data
+		if(table.entries[lines].type==1) {	// A
+			char ip[16]={0};
+			int ip_offset=0;
+			table.entries[lines].data = malloc(4*sizeof(char));
+			while(i<strlen(buffer)) {
+				ip[ip_offset++]=buffer[i++];
+			}
+			convert_ip_to_bytes(ip, table.entries[lines].data);
+		} else {
+			table.entries[lines].data = malloc(4*sizeof(char));
+			table.entries[lines].data[0]=0;
+		}
+		printf("DATA : ");
+		print_n_bytes(table.entries[lines].data, 4);
+	}
+
+
+
+
+	// Free the buffer and close the file
+	free(buffer);
+	fclose(fp);
+
+	return table;
 }
 
 void generate_dns_header(char* dest, int16_t id, char opcode, char authority_answer, char truncated, char recursive_question, char recursive_answer, char rcode, int16_t questions, int16_t answers, int16_t name_servers, int16_t additionals) {

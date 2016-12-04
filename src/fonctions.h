@@ -3,12 +3,33 @@
 
 #include <stdlib.h>
 
-#define DNS_TYPE_A 1
-#define DNS_TYPE_AA 2
-#define DNS_TYPE_AAAA 3
-#define DNS_TYPE_SOA 4
-#define DNS_TYPE_MX 5
-#define DNS_CLASS_IN 1
+/***********************************
+ *
+ * NAME : dns_table_entry : DNS configuration table entry
+ * DATA : name : domain name
+ * DATA : class : class of the entry
+ * DATA : type : type of the entry
+ * DATA : data : content of the entry
+ *
+ ***********************************/
+typedef struct {
+	char name[63];
+	int16_t class;
+	int16_t type;
+	char* data;
+} dns_table_entry;
+
+/***********************************
+ *
+ * NAME : dns_table : DNS configuration table
+ * DATA : ttl : Time To Live for the entries
+ * DATA : entries : the table content
+ *
+ ***********************************/
+typedef struct {
+	int32_t ttl;
+	dns_table_entry* entries;
+} dns_table;
 
 /***********************************
  *
@@ -32,6 +53,26 @@ void convert_int16_to_2int8(int16_t in, int8_t* res);
  *
  ***********************************/
 int16_t convert_2int8_to_int16(int8_t* in);
+
+/***********************************
+ *
+ * NAME : convert_ip_to_bytes : convert an ip address (XXX.XXX.XXX.XXX)
+ * to a char[4] array
+ * PARAM : ip : the string to convert
+ * PARAM : bytes : the char[4] array destination
+ *
+ ***********************************/
+void convert_ip_to_bytes(char* ip, char* bytes);
+
+/***********************************
+ *
+ * NAME : convert_bytes_to_ip : convert a char[4] array 
+ * to an ip address (XXX.XXX.XXX.XXX)
+ * PARAM : bytes : the char[4] array to convert
+ * RETURN : the ip in a string format
+ *
+ ***********************************/
+void convert_bytes_to_ip(char* bytes, char* ip);
 
 /***********************************
  * 
@@ -97,6 +138,16 @@ int16_t str_to_label(char* src, char* dest);
  *
  ***********************************/
 int16_t label_to_str(char* src, char* dest);
+
+/***********************************
+ *
+ * NAME : init_table : initialize the DNS table from
+ * a source file
+ * PARAM : filename : name of the source file
+ * RETURN : the newly created DNS table
+ *
+ ***********************************/
+dns_table init_table(char* filename);
 
 /***********************************
  *
