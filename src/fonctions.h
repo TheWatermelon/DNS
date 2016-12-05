@@ -12,6 +12,7 @@
  * DATA : name : domain name
  * DATA : class : class of the entry
  * DATA : type : type of the entry
+ * DATA : data_length : length of data
  * DATA : data : content of the entry
  *
  ***********************************/
@@ -27,6 +28,7 @@ typedef struct {
  *
  * NAME : dns_table : DNS configuration table
  * DATA : ttl : Time To Live for the entries
+ * DATA : length : number of entries
  * DATA : entries : the table content
  *
  ***********************************/
@@ -36,6 +38,22 @@ typedef struct {
 	dns_table_entry* entries;
 } dns_table;
 
+/***********************************
+ *
+ * NAME : dns_header : DNS header
+ * DATA : id : id of the packet
+ * DATA : opcode : type of request
+ * DATA : authority_answer : if the answer comes from an authority name server
+ * DATA : truncated : if the message is truncated
+ * DATA : recursive_question : if the question asks for a recursive answer
+ * DATA : recursive_answer : if the answer accepts recursivity
+ * DATA : rcode : error code
+ * DATA : qdcount : number of questions
+ * DATA : ancount : number of answers
+ * DATA : nscount : number of name servers
+ * DATA : arcount : number of additional information
+ *
+************************************/
 typedef struct {
 	int16_t id;
 	char opcode;
@@ -50,6 +68,15 @@ typedef struct {
 	int16_t arcount;
 } dns_header;
 
+
+/***********************************
+ *
+ * NAME : dns_question : DNS question section
+ * DATA : name : name asked
+ * DATA : type : type of the question
+ * DATA : class : class of the question
+ *
+************************************/
 typedef struct {
 	char name[63];
 	int16_t type;
@@ -127,6 +154,11 @@ void print_n_bytes(char* src, int n);
  ***********************************/
 int is_empty_line(char* str);
 
+/***********************************
+ * 
+ * NAME : str_equaĺs_to : test equality between two strings
+ *
+************************************/
 int str_equals_to(char* str1, char* str2);
 
 /***********************************
