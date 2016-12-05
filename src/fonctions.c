@@ -93,6 +93,14 @@ int is_empty_line(char* str) {
 	return TRUE;
 }
 
+int str_equals_to(char* str1, char* str2) {
+	if(strlen(str1)!=strlen(str2)) { return -1; }
+	for(int i=0; i<strlen(str1); i++) {
+		if(str1[i]!=str2[i]) { return -1; }
+	}
+	return 0;
+}
+
 char* reverse_str(char* src) {
 	// Dynamic allocation
 	char* reverse = malloc(strlen(src)*sizeof(char));
@@ -184,6 +192,7 @@ dns_table init_table(char* filename) {
 	// Read the file
 	//
 	// TTL
+	//
 	getline(&buffer, &n, fp);
 	char ttl_str[11]={0};
 	int offset=0;
@@ -208,26 +217,36 @@ dns_table init_table(char* filename) {
 	// Skip the ttl line
 	getline(&buffer, &n, fp);
 	// Remplissage du contenu
+	int table_length=0;
 	for(int lines=0; lines<lines_count; lines++) {
 		if(getline(&buffer, &n, fp)==-1) { break; }
 		if(is_empty_line(buffer)) { continue; }
+		table_length++;
 		int i;
-								printf(" [LINE : %d]\n", lines);
-		// Name
+		//
+		// NAME
+		//
 		for(i=0; buffer[i]!=32; i++) {
 			table.entries[lines].name[i]=buffer[i];
 		}
-								printf("NAME : %s\n", table.entries[lines].name);
+		// Remove '.'
+		if(table.entries[lines].name[i-1]==46) {
+			table.entries[lines].name[i-1]=0;
+		}
 		// Go to class
 		while(buffer[++i]==32);
+		//
+		// CLASS
+		//
 		// Class is always IN, so other class found will be 0
 		if(buffer[i]!=73) { table.entries[lines].class = 0; }
 		else { table.entries[lines].class = 1; }
 		i++;
-								printf("CLASS : %d\n", table.entries[lines].class);
 		// Go to type
 		while(buffer[++i]==32);
-		// Type
+		// 
+		// TYPE
+		//
 		if(buffer[i]==65) {
 			// AAAA
 			if(buffer[i+1]==65) {
@@ -257,30 +276,31 @@ dns_table init_table(char* filename) {
 			// Shift until the next space
 			while(buffer[++i]!=32);
 		}
-									printf("TYPE : %d\n", table.entries[lines].type);
 		// Shift until the next data
 		while(buffer[++i]==32);
-		// Switch case for the data
+		//
+		// DATA
+		//
 		if(table.entries[lines].type==1) {	// A
 			char ip[16]={0};
 			int ip_offset=0;
+			table.entries[lines].data_length=4;
 			table.entries[lines].data = malloc(4*sizeof(char));
 			while(i<strlen(buffer)-1) {
 				ip[ip_offset++]=buffer[i++];
 			}
 			convert_ip_to_bytes(ip, table.entries[lines].data);
-			printf("DATA : ");
-			print_n_bytes(table.entries[lines].data, 4);
 		} else if(table.entries[lines].type==5 ||	/* CNAME */
 				table.entries[lines].type==2 ||	/* NS */
 				table.entries[lines].type==12) {	/* PTR */
+			table.entries[lines].data_length=strlen(buffer)-i;
 			table.entries[lines].data = malloc((strlen(buffer)-i)*sizeof(char));
 			int address_offset=0;
 			while(i<strlen(buffer)-1) {
 				table.entries[lines].data[address_offset++]=buffer[i++];
 			}
-			printf("DATA : %s\n", table.entries[lines].data);
 		} else if(table.entries[lines].type==15) {	/* MX */
+			table.entries[lines].data_length=strlen(buffer)-i;
 			table.entries[lines].data = malloc((strlen(buffer)-i)*sizeof(char));
 			char buff[3];
 			char* ptr;
@@ -295,8 +315,8 @@ dns_table init_table(char* filename) {
 			while(i<strlen(buffer)-1) {
 				table.entries[lines].data[address_offset++]=buffer[i++];
 			}
-			printf("DATA :%d %s\n", preference, table.entries[lines].data);
 		} else if(table.entries[lines].type==6) {	// SOA
+			table.entries[lines].data_length=128;
 			table.entries[lines].data = malloc(128*sizeof(char));
 			int data_offset=0;
 			/* First address */
@@ -364,16 +384,12 @@ dns_table init_table(char* filename) {
 			write_in_str(table.entries[lines].data, &data_offset, ptr, 4);
 			/* end of SOA section */
 			getline(&buffer, &n, fp);
-			printf("DATA : ");
-			print_n_bytes(table.entries[lines].data, 128);
 		} else {
 			table.entries[lines].data = malloc(4*sizeof(char));
 			table.entries[lines].data[0]=0;
 		}
 	}
-
-
-
+	table.length=table_length;
 
 	// Free the buffer and close the file
 	free(buffer);
@@ -382,7 +398,29 @@ dns_table init_table(char* filename) {
 	return table;
 }
 
-void generate_dns_header(char* dest, int16_t id, char opcode, char authority_answer, char truncated, char recursive_question, char recursive_answer, char rcode, int16_t questions, int16_t answers, int16_t name_servers, int16_t additionals) {
+int search_table_entry(dns_table table, char* name, int16_t type, int16_t class) {
+	fprintf(stderr, "Converting name...");
+	char url[63]={0};
+	label_to_str(name, url);
+	fprintf(stderr, " done !\n");
+
+	fprintf(stderr, "Searching in table...");
+	for(int i=0; i<table.length; i++) {
+		fprintf(stderr, "Compare %s::%d::%d with %s::%d::%d\n", table.entries[i].name, table.entries[i].type, table.entries[i].class, url, type, class);
+		if(str_equals_to(table.entries[i].name, url)==0) { 
+			if(table.entries[i].type==type) { 
+				if(table.entries[i].class==class) { 
+					fprintf(stderr, " found !\n");
+					return i; 
+				} 
+			} 
+		}
+	}
+					fprintf(stderr, " not found !\n");
+	return -1;
+}
+
+int generate_dns_header(char* dest, int16_t id, char opcode, char authority_answer, char truncated, char recursive_question, char recursive_answer, char rcode, int16_t questions, int16_t answers, int16_t name_servers, int16_t additionals) {
 	char* ptr;
 	int16_t info=0;
 	int offset=0;
@@ -411,9 +449,10 @@ void generate_dns_header(char* dest, int16_t id, char opcode, char authority_ans
 	// ARCOUNT
 	ptr = (char*)&additionals;
 	write_in_str(dest, &offset, ptr, 2);
+	return offset;
 }
 
-void generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass) {
+int generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass) {
 	int offset=0;
 	char* ptr;
 	// QNAME
@@ -436,9 +475,10 @@ void generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclas
 	// QCLASS
 	ptr = (char*)&qclass;
 	write_in_str(dest, &offset, ptr, 2);
+	return offset;
 }
 
-void generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int16_t rclass, int32_t ttl, int16_t rdlength, char* rdata) {
+int generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int16_t rclass, int32_t ttl, int16_t rdlength, char* rdata) {
 	int offset=0;
 	char* ptr;
 	// RNAME
@@ -465,4 +505,149 @@ void generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int1
 	} else {
 		write_in_str(dest, &offset, rdata, strlen(rdata));
 	}
+	return offset;
+}
+
+dns_header* get_dns_header(char* src) {
+	dns_header* h;
+	int offset=0;
+	int8_t buff[2]={0};
+	fprintf(stderr, "ID : %x%x\n", src[0], src[1]);
+	// ID
+	if(test_little_endian()) {
+		buff[1]=src[offset]&0xFF;
+		offset++;
+		buff[0]=src[offset]&0xFF;
+		offset++;
+	} else {
+		buff[0]=src[offset]&0xFF;
+		offset++;
+		buff[1]=src[offset]&0xFF;
+		offset++;
+	}
+	fprintf(stderr, "BUFF : %x%x\n", buff[0], buff[1]);
+	h->id=convert_2int8_to_int16(buff);
+	fprintf(stderr, "ID : %d", h->id);
+	// OPCODE
+	buff[0]=src[offset];
+	buff[0]=(buff[0]&0x78)>>3;
+	h->opcode=buff[0];
+	// AUTHORITY ANSWER
+	buff[0]=src[offset];
+	buff[0]=(buff[0]&0x04)>>2;
+	h->authority_answer=buff[0];
+	// TRUNCATED
+	buff[0]=src[offset];
+	buff[0]=(buff[0]&0x02)>>1;
+	h->truncated = buff[0];
+	// RECURSIVE QUESTION
+	buff[0]=src[offset];
+	h->recursive_question=buff[0]&0x01;
+	offset++;
+	// RECURSIVE ANSWER
+	buff[1]=src[offset];
+	buff[1]=(buff[1]&0x80)>>7;
+	h->recursive_answer=buff[1];
+	// RCODE
+	buff[1]=src[offset];
+	h->rcode=buff[1]&0x0F;
+	offset++;
+	// QDCOUNT
+	if(test_little_endian()) {
+		buff[1]=src[offset++];
+		buff[0]=src[offset++];
+	} else {
+		buff[0]=src[offset++];
+		buff[1]=src[offset++];
+	}
+	h->qdcount=convert_2int8_to_int16(buff);
+	// ANCOUNT
+	if(test_little_endian()) {
+		buff[1]=src[offset++];
+		buff[0]=src[offset++];
+	} else {
+		buff[0]=src[offset++];
+		buff[1]=src[offset++];
+	}
+	h->ancount=convert_2int8_to_int16(buff);
+	// NSCOUNT
+	if(test_little_endian()) {
+		buff[1]=src[offset++];
+		buff[0]=src[offset++];
+	} else {
+		buff[0]=src[offset++];
+		buff[1]=src[offset++];
+	}
+	h->nscount=convert_2int8_to_int16(buff);
+	// ARCOUNT
+	if(test_little_endian()) {
+		buff[1]=src[offset++];
+		buff[0]=src[offset++];
+	} else {
+		buff[0]=src[offset++];
+		buff[1]=src[offset++];
+	}
+	h->arcount=convert_2int8_to_int16(buff);
+
+	return h;
+}
+
+dns_question* get_dns_question(char* src) {
+	int i=0;
+	dns_question* q;
+	// QNAME
+	while(src[i]!=0) {
+		q->name[i]=src[i];
+		i++;
+	}
+	q->name[i]=0;
+	fprintf(stderr, "\n");
+	i++;
+	int8_t buff[2];
+	// QTYPE
+	if(test_little_endian()) {
+		buff[1]=src[i++];
+		buff[0]=src[i++];
+	} else {
+		buff[0]=src[i++];
+		buff[1]=src[i++];
+	}
+	q->type=convert_2int8_to_int16(buff);
+	// QCLASS
+	if(test_little_endian()) {
+		buff[1]=src[i++];
+		buff[0]=src[i++];
+	} else {
+		buff[0]=src[i++];
+		buff[1]=src[i++];
+	}
+	q->class=convert_2int8_to_int16(buff);
+	
+	return q;
+}
+
+int get_dns_resource_record(char* dest, char* src) {
+	// TODO
+}
+
+int answer_to_question(char* answer, char* question, dns_table table) {
+	dns_header* h = get_dns_header(question);
+	fprintf(stderr, "Got header !\n");
+	dns_question* q = get_dns_question(question+12);
+	fprintf(stderr, "Got question !\n");
+	int index, offset=0;
+
+	if((index=search_table_entry(table, q->name, q->type, q->class))==-1) {
+		fprintf(stderr, "Entry not found !\n");
+		return EXIT_FAILURE;
+	} else {
+		fprintf(stderr, "Entry found !\n");
+		// gen header
+		offset=generate_dns_header(answer, h->id, h->opcode, h->authority_answer, h->truncated, h->recursive_question, h->recursive_question==1?1:0, h->rcode, h->qdcount, h->ancount+1, h->nscount, h->arcount);
+		// gen question
+		offset+=generate_dns_question(answer+offset, q->name, q->type, q->class);
+		// gen answer
+		offset+=generate_dns_resource_record(answer+offset, 0xC00C, q->type, q->class, 0x00015180, table.entries[index].data_length, table.entries[index].data);
+	}
+	return offset;
 }

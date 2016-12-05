@@ -19,6 +19,7 @@ typedef struct {
 	char name[63];
 	int16_t class;
 	int16_t type;
+	int16_t data_length;
 	char* data;
 } dns_table_entry;
 
@@ -31,8 +32,29 @@ typedef struct {
  ***********************************/
 typedef struct {
 	int32_t ttl;
+	int length;
 	dns_table_entry* entries;
 } dns_table;
+
+typedef struct {
+	int16_t id;
+	char opcode;
+	char authority_answer;
+	char truncated;
+	char recursive_question;
+	char recursive_answer;
+	char rcode;
+	int16_t qdcount;
+	int16_t ancount;
+	int16_t nscount;
+	int16_t arcount;
+} dns_header;
+
+typedef struct {
+	char name[63];
+	int16_t type;
+	int16_t class;
+} dns_question;
 
 /***********************************
  *
@@ -104,6 +126,8 @@ void print_n_bytes(char* src, int n);
  * RETURN : true if the line is empty, false otherwise
  ***********************************/
 int is_empty_line(char* str);
+
+int str_equals_to(char* str1, char* str2);
 
 /***********************************
  *
@@ -178,7 +202,7 @@ dns_table init_table(char* filename);
  * PARAM : additionals : number of additional resources records
  *
  ***********************************/
-void generate_dns_header(char* dest, int16_t id, char opcode, char authority_answer, char truncated, char recursive_question, char recursive_answer, char rcode, int16_t questions, int16_t answers, int16_t name_servers, int16_t additionals);
+int generate_dns_header(char* dest, int16_t id, char opcode, char authority_answer, char truncated, char recursive_question, char recursive_answer, char rcode, int16_t questions, int16_t answers, int16_t name_servers, int16_t additionals);
 
 /***********************************
  *
@@ -189,7 +213,7 @@ void generate_dns_header(char* dest, int16_t id, char opcode, char authority_ans
  * PARAM : qclass : class of the question
  *
  ***********************************/
-void generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass);
+int generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass);
 
 /***********************************
  *
@@ -203,6 +227,14 @@ void generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclas
  * PARAM : rdata : resource record data
  *
  ***********************************/
-void generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int16_t rclass, int32_t ttl, int16_t rdlength, char* rdata);
+int generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int16_t rclass, int32_t ttl, int16_t rdlength, char* rdata);
+
+dns_header* get_dns_header(char* src);
+
+dns_question* get_dns_question(char* src);
+
+int get_dns_resource_record(char* dest, char* src);
+
+int answer_to_question(char* answer, char* question, dns_table table);
 
 #endif /* FONCTIONS_H */
