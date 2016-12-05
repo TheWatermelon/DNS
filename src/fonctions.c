@@ -209,7 +209,7 @@ dns_table init_table(char* filename) {
 	getline(&buffer, &n, fp);
 	// Remplissage du contenu
 	for(int lines=0; lines<lines_count; lines++) {
-		getline(&buffer, &n, fp);
+		if(getline(&buffer, &n, fp)==-1) { break; }
 		if(is_empty_line(buffer)) { continue; }
 		int i;
 								printf(" [LINE : %d]\n", lines);
@@ -296,6 +296,76 @@ dns_table init_table(char* filename) {
 				table.entries[lines].data[address_offset++]=buffer[i++];
 			}
 			printf("DATA :%d %s\n", preference, table.entries[lines].data);
+		} else if(table.entries[lines].type==6) {	// SOA
+			table.entries[lines].data = malloc(128*sizeof(char));
+			int data_offset=0;
+			/* First address */
+			while(buffer[i]!=32) { table.entries[lines].data[data_offset++] = buffer[i++]; printf("%x:%x ",buffer[i-1], table.entries[lines].data[data_offset-1]); }
+			printf("\n");
+			
+			/* Second address */
+			// Skip to second address
+			while(buffer[++i]==32);
+			while(buffer[i]!=32) { table.entries[lines].data[data_offset++] = buffer[i++]; }
+			/* serial number */
+			getline(&buffer, &n, fp);
+			// Skip to serial
+			while(buffer[i++]==32);
+			// serial
+			char serial[11]={0};
+			int time_data_offset=0;
+			while(buffer[i]!=32) { serial[time_data_offset++]=buffer[i++]; }
+			time_data_offset = atoi(serial);
+			char* ptr = (char*)&time_data_offset;
+			write_in_str(table.entries[lines].data, &data_offset, ptr, 4);
+			/* refresh */
+			getline(&buffer, &n, fp);
+			// Skip to refresh
+			while(buffer[i++]==32);
+			// refresh
+			char refresh[3]={0};
+			time_data_offset=0;
+			while(buffer[i]>47 && buffer[i]<58) { refresh[time_data_offset++]=buffer[i++]; }
+			time_data_offset = atoi(refresh);
+			ptr = (char*)&time_data_offset;
+			write_in_str(table.entries[lines].data, &data_offset, ptr, 4);
+			/* retry */
+			getline(&buffer, &n, fp);
+			// Skip to retry
+			while(buffer[i++]==32);
+			// retry
+			char retry[3]={0};
+			time_data_offset=0;
+			while(buffer[i]>47 && buffer[i]<58) { retry[time_data_offset++]=buffer[i++]; }
+			time_data_offset = atoi(retry);
+			ptr = (char*)&time_data_offset;
+			write_in_str(table.entries[lines].data, &data_offset, ptr, 4);
+			/* expire */
+			getline(&buffer, &n, fp);
+			// Skip to expire
+			while(buffer[i++]==32);
+			// expire
+			char expire[3]={0};
+			time_data_offset=0;
+			while(buffer[i]>47 && buffer[i]<58) { expire[time_data_offset++]=buffer[i++]; }
+			time_data_offset = atoi(expire);
+			ptr = (char*)&time_data_offset;
+			write_in_str(table.entries[lines].data, &data_offset, ptr, 4);
+			/* ttl */
+			getline(&buffer, &n, fp);
+			// Skip to ttl
+			while(buffer[i++]==32);
+			// ttl
+			char ttl[3]={0};
+			time_data_offset=0;
+			while(buffer[i]>47 && buffer[i]<58) { ttl[time_data_offset++]=buffer[i++]; }
+			time_data_offset = atoi(ttl);
+			ptr = (char*)&time_data_offset;
+			write_in_str(table.entries[lines].data, &data_offset, ptr, 4);
+			/* end of SOA section */
+			getline(&buffer, &n, fp);
+			printf("DATA : ");
+			print_n_bytes(table.entries[lines].data, 128);
 		} else {
 			table.entries[lines].data = malloc(4*sizeof(char));
 			table.entries[lines].data[0]=0;
