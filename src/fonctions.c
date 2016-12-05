@@ -93,19 +93,11 @@ int is_empty_line(char* str) {
 	return TRUE;
 }
 
-int str_equals_to(char* str1, char* str2) {
-	if(strlen(str1)!=strlen(str2)) { return -1; }
-	for(int i=0; i<strlen(str1); i++) {
-		if(str1[i]!=str2[i]) { return -1; }
-	}
-	return 0;
-}
-
-char* reverse_str(char* src) {
+char* reverse_str(char* src, int n) {
 	// Dynamic allocation
-	char* reverse = malloc(strlen(src)*sizeof(char));
-	int offset=strlen(src)-1;
-	for(int i=0; i<strlen(src); i++) {
+	char* reverse = malloc(n*sizeof(char));
+	int offset=n-1;
+	for(int i=0; i<n; i++) {
 		reverse[i]=src[offset--];
 	}
 	return reverse;
@@ -399,24 +391,18 @@ dns_table init_table(char* filename) {
 }
 
 int search_table_entry(dns_table table, char* name, int16_t type, int16_t class) {
-	fprintf(stderr, "Converting name...");
 	char url[63]={0};
 	label_to_str(name, url);
-	fprintf(stderr, " done !\n");
 
-	fprintf(stderr, "Searching in table...");
 	for(int i=0; i<table.length; i++) {
-		fprintf(stderr, "Compare %s::%d::%d with %s::%d::%d\n", table.entries[i].name, table.entries[i].type, table.entries[i].class, url, type, class);
-		if(str_equals_to(table.entries[i].name, url)==0) { 
+		if(strcmp(table.entries[i].name, url)==0) { 
 			if(table.entries[i].type==type) { 
 				if(table.entries[i].class==class) { 
-					fprintf(stderr, " found !\n");
 					return i; 
 				} 
 			} 
 		}
 	}
-					fprintf(stderr, " not found !\n");
 	return -1;
 }
 
@@ -458,7 +444,7 @@ int generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass
 	// QNAME
 	// Le label recu en parametre est au format Big Endian
 	if(test_little_endian()) { 
-		char* reverse_qname = reverse_str(qname);
+		char* reverse_qname = reverse_str(qname, strlen(qname));
 		write_in_str(dest, &offset, reverse_qname, strlen(qname));
 		free(reverse_qname);
 	} else {
@@ -499,20 +485,21 @@ int generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int16
 	// RDATA
 	// Les donnees recues en parametre sont au format Big Endian
 	if(test_little_endian()) { 
-		char* reverse_rdata = reverse_str(rdata);
+		char* reverse_rdata = reverse_str(rdata, 4);
 		write_in_str(dest, &offset, reverse_rdata, rdlength);
 		free(reverse_rdata);
 	} else {
-		write_in_str(dest, &offset, rdata, strlen(rdata));
+		write_in_str(dest, &offset, rdata, rdlength);
 	}
 	return offset;
 }
 
 dns_header* get_dns_header(char* src) {
 	dns_header* h;
+	h = malloc(sizeof(dns_header));
+
 	int offset=0;
 	int8_t buff[2]={0};
-	fprintf(stderr, "ID : %x%x\n", src[0], src[1]);
 	// ID
 	if(test_little_endian()) {
 		buff[1]=src[offset]&0xFF;
@@ -525,9 +512,7 @@ dns_header* get_dns_header(char* src) {
 		buff[1]=src[offset]&0xFF;
 		offset++;
 	}
-	fprintf(stderr, "BUFF : %x%x\n", buff[0], buff[1]);
 	h->id=convert_2int8_to_int16(buff);
-	fprintf(stderr, "ID : %d", h->id);
 	// OPCODE
 	buff[0]=src[offset];
 	buff[0]=(buff[0]&0x78)>>3;
@@ -595,6 +580,8 @@ dns_header* get_dns_header(char* src) {
 dns_question* get_dns_question(char* src) {
 	int i=0;
 	dns_question* q;
+	q = malloc(sizeof(dns_question));
+
 	// QNAME
 	while(src[i]!=0) {
 		q->name[i]=src[i];
@@ -626,24 +613,45 @@ dns_question* get_dns_question(char* src) {
 	return q;
 }
 
-int get_dns_resource_record(char* dest, char* src) {
+dns_resource_record* get_dns_resource_record(char* src) {
 	// TODO
 }
 
-int answer_to_question(char* answer, char* question, dns_table table) {
+int answer_to_question(char* answer, char* question, int question_length, dns_table table) {
 	dns_header* h = get_dns_header(question);
-	fprintf(stderr, "Got header !\n");
 	dns_question* q = get_dns_question(question+12);
-	fprintf(stderr, "Got question !\n");
 	int index, offset=0;
 
 	if((index=search_table_entry(table, q->name, q->type, q->class))==-1) {
-		fprintf(stderr, "Entry not found !\n");
+		int tube[2];
+		if(pipe(tube)==-1) {
+			fprintf(stderr, "Error Tube\n");
+			return EXIT_FAILURE;
+		}
+		int pid=fork();
+		if(pid==-1) {
+			fprintf(stderr, "Error Fork\n");
+			return EXIT_FAILURE;
+		}
+		if(pid==0) {
+			dup2(0, tube[0]);
+			dup2(1, tube[1]);
+			char* const args[]={"nc","-u","dns.unicaen.fr","53"};
+			execv("nc", args);
+			int offset=0;
+		} else {
+			char* packet=malloc(512);
+			write(tube[0], question, question_length);
+			int length=read(tube[1], packet, 512);
+			packet[0]=question[0];
+			packet[1]=question[1];
+			answer=packet;
+			return length;
+		}
 		return EXIT_FAILURE;
 	} else {
-		fprintf(stderr, "Entry found !\n");
 		// gen header
-		offset=generate_dns_header(answer, h->id, h->opcode, h->authority_answer, h->truncated, h->recursive_question, h->recursive_question==1?1:0, h->rcode, h->qdcount, h->ancount+1, h->nscount, h->arcount);
+		offset=generate_dns_header(answer, h->id, h->opcode, h->authority_answer, h->truncated, h->recursive_question, h->recursive_question==1?1:0, h->rcode, h->qdcount, h->ancount+1, h->nscount, 0x0000);
 		// gen question
 		offset+=generate_dns_question(answer+offset, q->name, q->type, q->class);
 		// gen answer

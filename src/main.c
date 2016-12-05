@@ -8,10 +8,11 @@ int main(int argc, const char** argv) {
 	char question[64]={0};
 	dns_table table = init_table("../doc/config_dns");
 
-	int length=read(0, packet, 512);
-	fprintf(stderr, "Received %d bytes\n", length);
+	int received_length=read(0, packet, 512);
+	fprintf(stderr, "Received %d bytes\n", received_length);
 
 	char answer[512]={0};
-	length=answer_to_question(answer, packet, table);
+	int length=answer_to_question(answer, packet, received_length, table);
+	fprintf(stderr, "Send %d bytes\n", length);
 	write(1, answer, length);
 }

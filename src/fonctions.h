@@ -85,6 +85,25 @@ typedef struct {
 
 /***********************************
  *
+ * NAME : dns_resource_record : DNS resource record section
+ * DATA : name : reference to the resource name
+ * DATA : type : type of record
+ * DATA : class : class of record
+ * DATA : ttl : time to live of the record
+ * DATA : data_length : size of data
+ * DATA : data : data
+************************************/
+typedef struct {
+	int16_t name;
+	int16_t type;
+	int16_t class;
+	int32_t ttl;
+	int16_t data_length;
+	char* data;
+} dns_resource_record;
+
+/***********************************
+ *
  * NAME : test_little_endian : check whether 
  * the machine is in little endian format
  * RETURN : true if the machine is in little endian, false otherwise
@@ -155,22 +174,16 @@ void print_n_bytes(char* src, int n);
 int is_empty_line(char* str);
 
 /***********************************
- * 
- * NAME : str_equaĺs_to : test equality between two strings
- *
-************************************/
-int str_equals_to(char* str1, char* str2);
-
-/***********************************
  *
  * NAME : reverse_str : reverse the given string
  * It uses dynamic memory allocation, so don't forget to
  * free the returned string
  * PARAM : src : the source string
+ * PARAM : n : length of the string
  * RETURN : the reversed string
  *
  ***********************************/
-char* reverse_str(char* src);
+char* reverse_str(char* src, int n);
 
 /***********************************
  *
@@ -219,6 +232,20 @@ dns_table init_table(char* filename);
 
 /***********************************
  *
+ * NAME : search_table_entry : search the first
+ * appearance of name, type and class in the DNS table
+ * and return its index
+ * PARAM : table : the DNS table
+ * PARAM : name : name to search
+ * PARAM : type : type to search
+ * PARAM : class : class to search
+ * RETURN : the table index of the corresponding entry; -1 if not found
+ *
+************************************/
+int search_table_entry(dns_table table, char* name, int16_t type, int16_t class);
+
+/***********************************
+ *
  * NAME : generate_dns_header : generate a DNS header based on the arguments
  * PARAM : dest : the DNS header destination
  * PARAM : id : the packet ID
@@ -261,12 +288,44 @@ int generate_dns_question(char* dest, char* qname, int16_t qtype, int16_t qclass
  ***********************************/
 int generate_dns_resource_record(char* dest, int16_t rname, int16_t rtype, int16_t rclass, int32_t ttl, int16_t rdlength, char* rdata);
 
+/***********************************
+ *
+ * NAME : get_dns_header : parse the source in a DNS header
+ * PARAM : src : the source bytes
+ * RETURN : the newly created DNS header
+ *
+ ***********************************/
 dns_header* get_dns_header(char* src);
 
+/***********************************
+ *
+ * NAME : get_dns_question : parse the source in a DNS question
+ * PARAM : src : the source bytes
+ * RETURN : the newly created DNS question
+ *
+ ***********************************/
 dns_question* get_dns_question(char* src);
 
-int get_dns_resource_record(char* dest, char* src);
+/***********************************
+ * [[ NOT IMPLEMENTED ]]
+ * NAME : get_dns_resource_record : parse the source in a DNS resource record
+ * PARAM : src : the source bytes
+ * RETURN : the newly created DNS resource record
+ *
+ ***********************************/
+dns_resource_record* get_dns_resource_record(char* src);
 
-int answer_to_question(char* answer, char* question, dns_table table);
+/***********************************
+ *
+ * NAME : answer_to_question : answer to a DNS question
+ * if the name requested is in the DNS table, it works well
+ * if not, the pipes are not fully functional so...
+ * PARAM : answer : the answer of the question
+ * PARAM : question : the question asked by the DNS client
+ * PARAM : question_length : length of the question
+ * PARAM : table : the DNS table
+ * RETURN : the length of the answer
+************************************/
+int answer_to_question(char* answer, char* question, int question_length, dns_table table);
 
 #endif /* FONCTIONS_H */
